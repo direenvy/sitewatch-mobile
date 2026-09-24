@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Sitewatch",
+    "slug": "sitewatch-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "dev.direnvy.sitewatch",
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"],
+      "adaptiveIcon": { "backgroundColor": "#1e1310" }
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Sitewatch reads the photo you pick. It is scored on this phone and never uploaded.",
+          "cameraPermission": "Sitewatch scores the photo you take on this phone. Nothing is uploaded."
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+Loading D:/Portfolio/sitewatch-mobile/model/sitewatch-512.onnx for ONNX Runtime inference...
+Using ONNX Runtime 1.26.0 with CPUExecutionProvider
+  mine=6 ultralytics=5  unmatched: port 0.352 (best IoU vs ultra 0.00)
+  mine=4 ultralytics=5  unmatched: ultra 0.358 (best IoU vs port 0.00)
+  mine=7 ultralytics=8  unmatched: ultra 0.473 (best IoU vs port 0.45)
+
+images            40
+boxes (port)      114
+boxes (ultralytics) 115
+matched           113
+worst IoU on a matched pair   0.8988
+largest score disagreement    0.0331
+
+agreement         98.3% of Ultralytics' boxes
+VERDICT: agree, to within resampling noise
