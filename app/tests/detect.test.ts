@@ -53,15 +53,18 @@ describe('preprocess', () => {
   });
 
   it('letterboxes a wide image with grey bars rather than stretching it', () => {
-    // 640x320 scales by 0.5 to 320x160, leaving 80px of padding top and bottom.
-    const { box, data } = preprocess(solid(640, 320, 255, 0, 0));
+    // Sized off INPUT_SIZE rather than written as literals, so changing the input
+    // resolution does not quietly turn this into a test of the old one. A 2:1 image
+    // twice the input's width halves exactly, leaving a quarter-input bar top and bottom.
+    const S = INPUT_SIZE;
+    const { box, data } = preprocess(solid(S * 2, S, 255, 0, 0));
     expect(box.scale).toBeCloseTo(0.5);
     expect(box.padX).toBe(0);
-    expect(box.padY).toBe(80);
+    expect(box.padY).toBe(S / 4);
 
-    const plane = INPUT_SIZE * INPUT_SIZE;
-    const topBar = 10 * INPUT_SIZE + 10; // inside the padding
-    const middle = 160 * INPUT_SIZE + 160; // inside the image
+    const plane = S * S;
+    const topBar = 10 * S + 10; // inside the padding
+    const middle = (S / 2) * S + S / 2; // inside the image
     expect(data[topBar]).toBeCloseTo(114 / 255);
     expect(data[middle]).toBeCloseTo(1); // red channel of a pure-red source
     expect(data[plane + middle]).toBeCloseTo(0); // green
