@@ -288,7 +288,9 @@ const styles = StyleSheet.create({
   empty: { ...type.body, fontFamily: fonts.body, color: colors.slateVeil, marginTop: space.lg },
 
   preview: { borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.card },
-  busy: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(12,16,24,0.45)' },
+  // Written out rather than StyleSheet.absoluteFillObject, which React Native 0.86
+  // no longer exposes on the type.
+  busy: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(12,16,24,0.45)' },
 
   statRow: { flexDirection: 'row', gap: space.sm },
   stat: { flex: 1, backgroundColor: colors.card, borderRadius: radius.card, padding: space.md, gap: 2 },

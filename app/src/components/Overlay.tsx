@@ -76,16 +76,30 @@ export function Overlay({ detections, imageWidth, imageHeight, displayWidth, dis
             {style.labelFill !== 'transparent' && (
               <Rect x={d.x1} y={labelY} width={labelW} height={labelSize * 1.5} fill={style.labelFill} />
             )}
+            {/* An unboxed label needs a dark outline to stay readable on pale concrete.
+                SVG's `paint-order` would do it in one element, but react-native-svg does
+                not expose it — so the text is drawn twice, stroke underneath and fill on
+                top. Drawing it once with both would paint the outline over the glyph and
+                thicken it into mush at this size. */}
+            {style.labelFill === 'transparent' && (
+              <SvgText
+                x={d.x1 + 3 * k}
+                y={labelY + labelSize * 1.1}
+                fill="none"
+                stroke={colors.onyx}
+                strokeWidth={1.4 * k}
+                fontSize={labelSize}
+                fontFamily={fonts.body}
+              >
+                {label}
+              </SvgText>
+            )}
             <SvgText
               x={d.x1 + 3 * k}
               y={labelY + labelSize * 1.1}
               fill={style.labelText}
               fontSize={labelSize}
               fontFamily={fonts.body}
-              stroke={style.labelFill === 'transparent' ? colors.onyx : 'none'}
-              strokeWidth={style.labelFill === 'transparent' ? 0.7 * k : 0}
-              // Paint the halo behind the glyph rather than over it.
-              paintOrder="stroke"
             >
               {label}
             </SvgText>

@@ -5,3 +5,4 @@ ios/
 *.apk
 *.aab
 dist/
+package-lock.json
