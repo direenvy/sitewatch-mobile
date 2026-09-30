@@ -1,0 +1,20 @@
+Loading D:/Portfolio/sitewatch-mobile/model/sitewatch-512.onnx for ONNX Runtime inference...
+Using ONNX Runtime 1.26.0 with CPUExecutionProvider
+  0/2001
+  400/2001
+  800/2001
+  1200/2001
+  1600/2001
+  2000/2001
+
+2001 test images, 1038 bare heads labelled
+
+ thresh  caught  missed  false alarms  precision   recall
+   0.04     961      77           530     64.5%   92.6%
+   0.05     957      81           463     67.4%   92.2%
+   0.10     944      94           294     76.3%   90.9%
+   0.15     936     102           229     80.3%   90.2%
+   0.20     929     109           193     82.8%   89.5%
+   0.25     915     123           169     84.4%   88.2%
+   0.35     903     135           134     87.1%   87.0%
+   0.50     850     188            79     91.5%   81.9%
