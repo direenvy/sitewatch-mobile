@@ -100,6 +100,53 @@ differ in the third decimal, and anything sitting on the threshold can land eith
 
 Reproduce with `model/crosscheck.py`; output kept in `model/crosscheck.txt`.
 
+## Where it fails, and why that matters most
+
+The first photo tried on a real phone was a stock image of a site injury: three workers
+in hard hats helping a fourth who is sitting on the ground, head bowed, his own helmet
+lying beside him. The app found the hard hats. **It did not find the bare head.**
+
+![The failing photo: three helmeted workers attending a seated man whose head is bare, his hard hat on the ground in front of him](docs/missed-detection.jpg)
+
+That is not a phone bug, a threshold choice or an export artefact, and it was worth
+proving rather than assuming:
+
+| | PyTorch 512 | PyTorch 640 | ONNX 512 (phone) |
+|---|---|---|---|
+| Hard hats found | 3 | 3 | 2–3 |
+| **Bare heads found** | **0** | **0** | **0** |
+| Best `no-hardhat` score anywhere | — | — | **0.039** |
+
+The original PyTorch weights, on a desktop, at a reckless confidence of 0.05, also find
+nothing. The strongest `no-hardhat` anchor in the whole image scores 0.039 against a
+shipped threshold of 0.35 — not a near miss, an absence.
+
+**Why.** He is seated, his head is bowed, and his own arm crosses his forehead. The
+19,745 training images are overwhelmingly upright workers seen head-on or in profile at
+working distance. A crouched figure with an occluded, downturned head is out of
+distribution, and no threshold recovers a detection the network never made.
+
+**Why this is the most important number in this README.** The headline mAP50 of 0.907 is
+measured on a held-out split drawn from the *same* distribution as training. It is a real
+number and it is not a promise about a photograph taken on a real site in an unusual
+moment. And the class that failed here is `no-hardhat` — the safety-critical one. A
+compliance tool that silently misses a violation is worse than one that reports nothing,
+because this photo scores **100% compliance**: three workers, three hard hats, no
+violations. The one man in danger is invisible to it.
+
+So the honest description of this project is narrower than "hard-hat compliance
+detection": it detects hard hats reliably, and detects their absence only in the postures
+it was trained on. Closing that gap needs training data of people sitting, lying,
+crouching and turned away — which is precisely the data a safety system most needs and
+is least likely to have, because those photographs are of accidents.
+
+There is one piece of good news buried in the failure. The phone agreed with the desktop
+model exactly: same hard hats found, same bare head missed. After two layers of
+hand-written reimplementation — letterboxing, head decoding and suppression in
+TypeScript — the app reproduces the reference pipeline's behaviour on a photo neither had
+seen. That is the field confirmation the unit tests and the Ultralytics cross-check could
+only approximate.
+
 ## Running it
 
 Requires an Expo **custom dev build** — Expo Go cannot load a native ONNX runtime.
