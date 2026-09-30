@@ -174,11 +174,45 @@ compliance tool that silently misses a violation is worse than one that reports 
 because this photo scores **100% compliance**: three workers, three hard hats, no
 violations. The one man in danger is invisible to it.
 
+### Could a lower threshold catch him?
+
+Worth measuring rather than asserting. The full test split — 2,001 images, 1,038 bare
+heads — scored at every threshold:
+
+| Threshold | Caught | Missed | False alarms | Precision | Recall |
+|---|---|---|---|---|---|
+| 0.04 | 961 | 77 | 530 | 64.5% | **92.6%** |
+| 0.10 | 944 | 94 | 294 | 76.3% | 90.9% |
+| 0.20 | 929 | 109 | 193 | 82.8% | 89.5% |
+| **0.35** *(shipped)* | 903 | 135 | 134 | 87.1% | 87.0% |
+| 0.50 | 850 | 188 | 79 | 91.5% | 81.9% |
+
+Two conclusions, and they point in opposite directions.
+
+**The shipped threshold is arguably too high for a safety product.** Dropping to 0.10
+catches 41 more violations for 160 more false alarms, at 76% precision — three correct
+flags for every wrong one. Sitewatch chose 0.35 by maximising F1 on `no-hardhat`, and F1
+weights a missed violation and a false alarm equally. For a system whose entire purpose is
+catching the violation, that symmetry is a choice, not a law, and this table is the
+evidence for revisiting it.
+
+**It still would not catch the man in the photo.** He scores **0.044** — below even the
+0.04 row, where a third of all flags are already noise. And if he did appear there it
+would be luck, not recognition. No threshold turns a 4% activation into a detection you
+could trust.
+
+So the two problems are separate and only one is cheap:
+
 So the honest description of this project is narrower than "hard-hat compliance
 detection": it detects hard hats reliably, and detects their absence only in the postures
 it was trained on. Closing that gap needs training data of people sitting, lying,
 crouching and turned away — which is precisely the data a safety system most needs and
 is least likely to have, because those photographs are of accidents.
+
+The irony is worth stating plainly: the photograph is *about* a man injured through not
+wearing a helmet. The exact scenario the tool exists to prevent is the one it cannot see,
+because people in that state are on the ground, and hard-hat datasets are built from
+pictures of people working.
 
 There is one piece of good news buried in the failure. The phone agreed with the desktop
 model exactly: same hard hats found, same bare head missed. After two layers of
