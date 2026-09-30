@@ -174,6 +174,38 @@ compliance tool that silently misses a violation is worse than one that reports 
 because this photo scores **100% compliance**: three workers, three hard hats, no
 violations. The one man in danger is invisible to it.
 
+### The fix that did not work
+
+The obvious hypothesis: the baseline trained with `degrees: 0.0`, so the model never
+saw a tilted head, and his head is bowed about 45°. Teach it rotation and it should
+generalise. Retrained YOLO11n for the same 12 epochs with `degrees=25`, `shear=5`,
+`perspective=0.0005`, `flipud=0.1`.
+
+| | Baseline | Pose-augmented |
+|---|---|---|
+| Test mAP50 | **0.9070** | 0.8939 |
+| AP50 `no-hardhat` | **0.8977** | 0.8855 |
+| **His score in the photograph** | 0.0439 | **0.0406** |
+| Detected at 0.35 | 0 | 0 |
+
+**It moved him from 0.044 to 0.041 — nothing — and cost 1.3 points of overall accuracy.**
+The augmented model is worse at everything and is not shipped.
+
+The negative result is worth more than the guess was. Rotating an upright face produces a
+*tilted face*: still eyes, still a hairline, still the features the network keys on. What
+the model actually faces in this photograph is **the crown of a bowed head** — dark hair,
+no face, half-hidden behind his own forearm. That is not a rotated version of anything in
+the training set, and no augmentation can manufacture it, because you cannot rotate a
+photograph into showing the top of someone's skull.
+
+So the model has not learned "head without a hard hat". It has learned something closer to
+"visible face with a bare hairline", which covers 1,038 test instances well and excludes
+this one entirely. Fixing that needs photographs of people seen from above and behind —
+bowed, crouched, seated, lying down — labelled as bare heads. New data, not new training
+tricks, and precisely the data least likely to exist.
+
+Reproduce with `training/train.py --name poseaug --pose-aug` in the Sitewatch repository.
+
 ### Could a lower threshold catch him?
 
 Worth measuring rather than asserting. The full test split — 2,001 images, 1,038 bare
