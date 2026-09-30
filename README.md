@@ -32,10 +32,12 @@ or assuming `0..1`, produces boxes that look reasonable and are wrong.
 
 **There is no `getImageData`.** React Native cannot hand you pixels. The route that
 works is native resize first (`expo-image-manipulator`), then base64, then a JPEG decode
-in JavaScript. Order matters enormously: decoding a 12-megapixel photo in pure JS is
-~36 MB of RGBA and several seconds, while decoding it *after* the native downscale is
-about 100k pixels and a few tens of milliseconds. The expensive resampling happens once,
-in C.
+in JavaScript. Order matters: decoding a 12-megapixel photo in pure JS would be ~36 MB of
+RGBA and several seconds, so the image is downscaled natively before jpeg-js ever sees it.
+
+**That ordering is necessary and it is not sufficient.** On the phone the decode still
+costs **943 ms** against **192 ms** for the network itself. Resizing first was the right
+call; assuming what remained would be cheap was not — see the measurements below.
 
 ## What export cost
 
@@ -99,6 +101,38 @@ The residual is resampling: the port uses PIL where Ultralytics uses OpenCV, sco
 differ in the third decimal, and anything sitting on the threshold can land either side.
 
 Reproduce with `model/crosscheck.py`; output kept in `model/crosscheck.txt`.
+
+## What it actually costs on a phone
+
+Samsung Galaxy A52 (Snapdragon 720G, 2020 mid-range), one 600×600 photo:
+
+| Stage | Time |
+|---|---|
+| **ONNX inference, 512×512** | **192 ms** |
+| **JPEG decode in JavaScript** | **943 ms** |
+| Total, shutter to boxes | ~1.14 s |
+
+**The neural network is the fast part.** 192 ms on mid-range 2020 silicon against 12 ms
+on a desktop CPU is about 16×, roughly what mobile-versus-desktop CPU should cost. A
+2.6M-parameter detector running in under a fifth of a second on a phone, with no network,
+is the claim this project set out to make, and it holds.
+
+**The bottleneck is `jpeg-js`, at five times the cost of inference.** An earlier draft of
+this README predicted "a few tens of milliseconds" for that step. That was wrong by about
+thirtyfold, and the reason is instructive: React Native runs on **Hermes, which has no
+JIT**, so a per-pixel loop over 262,144 pixels stays interpreted. The cost is not the
+algorithm, it is the engine. Resizing natively first genuinely helps — the full-resolution
+version would be seconds — but no amount of reordering makes an interpreted pixel loop
+competitive with compiled code.
+
+**The fix is a native decode**, handing the runtime a tensor built in C++ rather than one
+assembled in JavaScript. That would plausibly put the pipeline near 250 ms and make a
+live-video mode — hopeless now at under 1 fps — worth attempting at around 5, which is
+why the 320×320 export is kept in `model/`.
+
+What this means for the product as it stands: about a second per photo is perfectly
+usable for a supervisor checking a site by taking pictures, and completely unusable for
+anything continuous.
 
 ## Where it fails, and why that matters most
 
