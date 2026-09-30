@@ -246,7 +246,11 @@ function Stat({ label, value, emphasis }: { label: string; value: string; emphas
   return (
     <View style={styles.stat}>
       <Text style={[styles.statValue, emphasis && styles.statValueEmphasis]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      {/* Four cards across a phone leaves ~70pt each, which "Compliance" overflows —
+          it wrapped mid-word to "Complian ce". Shrink to fit rather than wrap. */}
+      <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+        {label}
+      </Text>
     </View>
   );
 }

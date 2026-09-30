@@ -140,7 +140,13 @@ The first photo tried on a real phone was a stock image of a site injury: three 
 in hard hats helping a fourth who is sitting on the ground, head bowed, his own helmet
 lying beside him. The app found the hard hats. **It did not find the bare head.**
 
-![The failing photo: three helmeted workers attending a seated man whose head is bare, his hard hat on the ground in front of him](docs/missed-detection.jpg)
+![Sitewatch running on a Galaxy A52: three hard hats boxed and labelled, People 3, Hard hats 3, Violations 0, Compliance 100% — while the seated man with no helmet is not detected at all](docs/hero.png)
+
+The screenshot above is the app itself, on the phone, scoring that photo. Three boxes,
+correctly placed. **People 3 · Hard hats 3 · Violations 0 · Compliance 100%** — and the
+man sitting on the ground without a helmet, being helped by the other three, is not
+counted as a person at all. The confidence threshold in that screenshot has been dragged
+down to **0.24**, well below the shipped 0.35, and he still does not appear.
 
 That is not a phone bug, a threshold choice or an export artefact, and it was worth
 proving rather than assuming:
