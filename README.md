@@ -232,6 +232,37 @@ tricks, and precisely the data least likely to exist.
 
 Reproduce with `training/train.py --name poseaug --pose-aug` in the Sitewatch repository.
 
+### The second fix that did not work
+
+If the specialist cannot recognise a bowed head, use a detector that can. COCO's
+`person` class is trained on a vastly wider pose distribution — people sitting, lying,
+crouching, occluded. So: find people with the general detector, find hard hats with the
+specialist, and flag any person whose head region contains no hat.
+
+**It catches him.** On the photograph, five people are found and the seated man is
+correctly flagged as having no hard hat. That looked like the answer.
+
+It is not. Measured across 300 test images:
+
+| | Caught | Missed | False alarms | Recall | Precision |
+|---|---|---|---|---|---|
+| Specialist (shipped) | 13 | 0 | 6 | 100% | **68.4%** |
+| Two-stage (person + hat) | 11 | 2 | **271** | 84.6% | **3.9%** |
+
+**271 false alarms against 6**, and it catches *fewer* real violations. Twenty-five out
+of every twenty-six flags would be wrong.
+
+The reason is structural, and it is the interesting part. The specialist detects hard
+hats at 87% precision, not 100%. The two-stage rule flags on *absence of evidence* — so
+every person whose hat simply was not picked up becomes an accusation, along with people
+facing away, people at the back of a crowd, heads cut off by the frame edge, and the
+duplicate person boxes COCO emits in groups.
+
+Inverting the burden of proof inverts which errors you make. The specialist only speaks
+when it is confident and misses the unusual; the two-stage version speaks whenever it
+cannot see a hat and drowns in false positives. For a safety tool that must be trusted to
+be acted on, the second failure is worse than the first.
+
 ### Could a lower threshold catch him?
 
 Worth measuring rather than asserting. The full test split — 2,001 images, 1,038 bare

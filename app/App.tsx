@@ -48,11 +48,17 @@ import {
 import { colors, dawnArc, fonts, radius, space, type } from './src/theme';
 
 interface Shot {
+  /** Stable across re-scoring, so deleting one photo cannot disturb the others. */
+  id: string;
   uri: string;
   image: LoadedImage;
   detections: Detection[];
   inferenceMs: number;
   decodeMs: number;
+  /** The undecoded head, kept per photo so the slider can re-score all of them. */
+  raw: Float32Array;
+  anchors: number;
+  box: Letterbox;
 }
 
 export default function App() {
@@ -64,13 +70,10 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shot, setShot] = useState<Shot | null>(null);
+  const [shots, setShots] = useState<Shot[]>([]);
   const [conf, setConf] = useState(DEFAULT_CONF);
   const [displayW, setDisplayW] = useState(0);
-
-  // Kept out of state on purpose: the raw head is ~12k floats and nothing re-renders
-  // when it changes — only the detections derived from it do.
-  const rawRef = useRef<{ raw: Float32Array; anchors: number; box: Letterbox } | null>(null);
+  const nextId = useRef(0);
 
   useEffect(() => {
     (async () => {
@@ -87,26 +90,31 @@ export default function App() {
     })();
   }, []);
 
+  /**
+   * Score one photo and append it.
+   *
+   * Appending rather than replacing is the point of a walk-round: a site is several
+   * photographs, and the question worth answering is how many unprotected people there
+   * are across all of them, not in the last one taken.
+   */
   const run = useCallback(
     async (uri: string, width: number, height: number) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const image = await imageToRGBA(uri, width, height);
-        const result = await detect(image.small, conf, DEFAULT_IOU);
-        rawRef.current = { raw: result.raw, anchors: result.anchors, box: result.box };
-        setShot({
+      const image = await imageToRGBA(uri, width, height);
+      const result = await detect(image.small, conf, DEFAULT_IOU);
+      setShots((prev) => [
+        ...prev,
+        {
+          id: `shot-${nextId.current++}`,
           uri,
           image,
           detections: result.detections,
           inferenceMs: result.inferenceMs,
           decodeMs: image.msDecode,
-        });
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setBusy(false);
-      }
+          raw: result.raw,
+          anchors: result.anchors,
+          box: result.box,
+        },
+      ]);
     },
     [conf],
   );
@@ -123,18 +131,48 @@ export default function App() {
       const opts: ImagePicker.ImagePickerOptions = { quality: 1, exif: false };
       const res = fromCamera
         ? await ImagePicker.launchCameraAsync(opts)
-        : await ImagePicker.launchImageLibraryAsync({ ...opts, mediaTypes: ImagePicker.MediaTypeOptions.Images });
+        : await ImagePicker.launchImageLibraryAsync({
+            ...opts,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsMultipleSelection: true,
+          });
       if (res.canceled) return;
-      const a = res.assets[0];
-      await run(a.uri, a.width, a.height);
+
+      setBusy(true);
+      setError(null);
+      try {
+        // Sequentially, not in parallel: each photo holds a full RGBA buffer and an ORT
+        // run, and a phone handed ten at once would run itself out of memory.
+        for (const a of res.assets) {
+          await run(a.uri, a.width, a.height);
+        }
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setBusy(false);
+      }
     },
     [run],
   );
 
-  const stats = useMemo(() => summarise(shot?.detections ?? []), [shot]);
-  // Height from the original photo, because that is the aspect ratio <Image> renders
-  // at. The overlay's coordinate system is a separate question — see below.
-  const displayH = shot ? (displayW * shot.image.height) / shot.image.width : 0;
+  const remove = useCallback((id: string) => setShots((prev) => prev.filter((s) => s.id !== id)), []);
+
+  /** Re-score every photo from its cached head — no second forward pass anywhere. */
+  const rescore = useCallback((v: number) => {
+    setConf(v);
+    setShots((prev) =>
+      prev.map((s) => ({
+        ...s,
+        detections: nms(
+          decode(s.raw, s.anchors, s.box, s.image.small.width, s.image.small.height, v),
+          DEFAULT_IOU,
+        ),
+      })),
+    );
+  }, []);
+
+  // Totals across every photo still in the list, which is what a walk-round asks.
+  const stats = useMemo(() => summarise(shots.flatMap((s) => s.detections)), [shots]);
 
   if (!fontsLoaded) return <View style={styles.boot} />;
 
@@ -177,30 +215,28 @@ export default function App() {
         )}
         {error && <Text style={styles.error}>{error}</Text>}
 
-        {shot && (
+        {busy && (
+          <View style={styles.notice}>
+            <ActivityIndicator color={colors.onyx} />
+            <Text style={styles.noticeText}>Scoring…</Text>
+          </View>
+        )}
+
+        {shots.length > 0 && (
           <>
-            <View style={styles.preview} onLayout={(e: LayoutChangeEvent) => setDisplayW(e.nativeEvent.layout.width)}>
-              <Image source={{ uri: shot.uri }} style={{ width: displayW, height: displayH }} resizeMode="contain" />
-              {displayW > 0 && (
-                /* The viewBox is the *downscaled* image, not the original: undoing the
-                   letterbox leaves boxes in the coordinate space of whatever was fed to
-                   the network, which is the downscaled copy. Since the SVG stretches its
-                   viewBox to the display rect and both copies share an aspect ratio,
-                   this lines up — and nothing has to be rescaled by hand. */
-                <Overlay
-                  detections={shot.detections}
-                  imageWidth={shot.image.small.width}
-                  imageHeight={shot.image.small.height}
-                  displayWidth={displayW}
-                  displayHeight={displayH}
-                />
-              )}
-              {busy && (
-                <View style={styles.busy}>
-                  <ActivityIndicator color={colors.parchment} />
-                </View>
-              )}
-            </View>
+            {shots.map((shot, i) => (
+              <ShotCard
+                key={shot.id}
+                shot={shot}
+                index={i}
+                total={shots.length}
+                displayW={displayW}
+                onLayout={(w) => setDisplayW(w)}
+                onRemove={() => remove(shot.id)}
+              />
+            ))}
+
+            {shots.length > 1 && <Text style={styles.totalLabel}>Across all {shots.length} photos</Text>}
 
             <View style={styles.statRow}>
               <Stat label="Heads found" value={String(stats.detected)} />
@@ -217,36 +253,94 @@ export default function App() {
               zero here is not a safe site.
             </Text>
 
-            <Threshold
-              value={conf}
-              onChange={(v) => {
-                setConf(v);
-                // Re-decode from the cached head — no second forward pass.
-                const cached = rawRef.current;
-                if (cached && shot) {
-                  const dets = nms(
-                    decode(cached.raw, cached.anchors, cached.box, shot.image.small.width, shot.image.small.height, v),
-                    DEFAULT_IOU,
-                  );
-                  setShot({ ...shot, detections: dets });
-                }
-              }}
-            />
+            <Threshold value={conf} onChange={rescore} />
 
             <Text style={styles.timing}>
-              {shot.inferenceMs} ms inference · {shot.decodeMs} ms JPEG decode · 512×512 input
+              {Math.round(shots.reduce((a, s) => a + s.inferenceMs, 0) / shots.length)} ms inference ·{' '}
+              {Math.round(shots.reduce((a, s) => a + s.decodeMs, 0) / shots.length)} ms JPEG decode ·
+              512×512 input{shots.length > 1 ? ', averaged' : ''}
             </Text>
+
+            <Pressable
+              style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+              onPress={() => setShots([])}
+            >
+              <Text style={styles.buttonText}>Clear all</Text>
+            </Pressable>
           </>
         )}
 
-        {!shot && ready && (
+        {shots.length === 0 && ready && !busy && (
           <Text style={styles.empty}>
-            Point it at a construction site. Every box is drawn by a 10 MB graph inside this
-            app — nothing leaves the phone.
+            Point it at a construction site. Add as many photos as you like — the counts add
+            up across all of them. Every box is drawn by a 10 MB graph inside this app;
+            nothing leaves the phone.
           </Text>
         )}
       </ScrollView>
     </SafeAreaProvider>
+  );
+}
+
+/**
+ * One photo, its boxes, and a way to get rid of it.
+ *
+ * The per-photo counts sit on the card rather than only in the totals, because a
+ * supervisor looking at four pictures needs to know *which* one has the violation.
+ */
+function ShotCard({
+  shot,
+  index,
+  total,
+  displayW,
+  onLayout,
+  onRemove,
+}: {
+  shot: Shot;
+  index: number;
+  total: number;
+  displayW: number;
+  onLayout: (w: number) => void;
+  onRemove: () => void;
+}) {
+  // Height from the original photo, because that is the aspect ratio <Image> renders at.
+  const displayH = displayW ? (displayW * shot.image.height) / shot.image.width : 0;
+  const s = summarise(shot.detections);
+
+  return (
+    <View style={styles.shotCard}>
+      <View style={styles.preview} onLayout={(e: LayoutChangeEvent) => onLayout(e.nativeEvent.layout.width)}>
+        <Image source={{ uri: shot.uri }} style={{ width: displayW, height: displayH }} resizeMode="contain" />
+        {displayW > 0 && (
+          /* The viewBox is the *downscaled* image, not the original: undoing the
+             letterbox leaves boxes in the coordinate space of whatever was fed to the
+             network, which is the downscaled copy. Since the SVG stretches its viewBox
+             to the display rect and both copies share an aspect ratio, this lines up. */
+          <Overlay
+            detections={shot.detections}
+            imageWidth={shot.image.small.width}
+            imageHeight={shot.image.small.height}
+            displayWidth={displayW}
+            displayHeight={displayH}
+          />
+        )}
+      </View>
+      <View style={styles.shotFoot}>
+        <Text style={styles.shotMeta}>
+          {total > 1 ? `${index + 1} of ${total} · ` : ''}
+          {s.withHat} with hard hat
+          {s.withoutHat > 0 ? ` · ${s.withoutHat} without` : ''}
+        </Text>
+        <Pressable
+          onPress={onRemove}
+          hitSlop={12}
+          accessibilityLabel={`Remove photo ${index + 1}`}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Text style={styles.remove}>Remove</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -299,6 +393,11 @@ const styles = StyleSheet.create({
   error: { ...type.bodySm, fontFamily: fonts.body, color: colors.onyx, backgroundColor: colors.card, padding: space.md, borderRadius: radius.small },
   empty: { ...type.body, fontFamily: fonts.body, color: colors.slateVeil, marginTop: space.lg },
 
+  shotCard: { gap: space.sm },
+  shotFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xs },
+  shotMeta: { ...type.caption, fontFamily: fonts.body, color: colors.slateVeil, flex: 1 },
+  remove: { ...type.caption, fontFamily: fonts.body, color: colors.onyx, textDecorationLine: 'underline' },
+  totalLabel: { ...type.caption, fontFamily: fonts.body, color: colors.slateVeil, marginTop: space.sm },
   preview: { borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.card },
   // Written out rather than StyleSheet.absoluteFillObject, which React Native 0.86
   // no longer exposes on the type.
