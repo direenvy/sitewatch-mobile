@@ -203,11 +203,19 @@ export default function App() {
             </View>
 
             <View style={styles.statRow}>
-              <Stat label="People" value={String(stats.people)} />
-              <Stat label="Hard hats" value={String(stats.compliant)} />
-              <Stat label="Violations" value={String(stats.violations)} emphasis />
-              <Stat label="Compliance" value={stats.compliancePct === null ? '—' : `${stats.compliancePct}%`} />
+              <Stat label="Heads found" value={String(stats.detected)} />
+              <Stat label="With hard hat" value={String(stats.withHat)} />
+              <Stat label="Without" value={String(stats.withoutHat)} emphasis />
             </View>
+
+            {/* Permanent, not conditional. A warning that only appears when the app
+                suspects it missed someone would be useless, because not knowing is
+                exactly the failure — it cannot flag what it did not see. */}
+            <Text style={styles.caveat}>
+              Counts only heads the detector found. People sitting, crouching, turned away or
+              partly hidden are often missed — this is not a count of everyone present, and a
+              zero here is not a safe site.
+            </Text>
 
             <Threshold
               value={conf}
@@ -303,5 +311,7 @@ const styles = StyleSheet.create({
   statValueEmphasis: { ...type.heading, fontFamily: fonts.display },
   statLabel: { ...type.caption, fontFamily: fonts.body, color: colors.slateVeil },
 
+  caveat: { ...type.caption, lineHeight: 16, fontFamily: fonts.body, color: colors.slateVeil,
+            backgroundColor: colors.card, borderRadius: radius.small, padding: space.md, marginTop: -space.sm },
   timing: { ...type.caption, fontFamily: fonts.body, color: colors.ashMist, textAlign: 'center' },
 });

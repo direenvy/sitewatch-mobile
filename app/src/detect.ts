@@ -252,16 +252,26 @@ export async function detect(
 }
 
 /** What the compliance readout on screen is counting. */
+/**
+ * What the screen is allowed to claim.
+ *
+ * There used to be a "Compliance %" here, and it was the most dangerous thing in the
+ * app. Shown a photograph of three helmeted workers helping a fourth who sits on the
+ * ground with his head bare, the detector finds three heads and the card read
+ * **100% compliant** — a confident, specific, wrong answer about the one situation the
+ * tool exists to catch. A percentage silently asserts the denominator is everyone
+ * present, and a detector only ever knows who it found.
+ *
+ * So the figure is gone. What is left counts detections and nothing else, and the
+ * screen carries a standing warning instead — because the dangerous case is not a
+ * violation reported wrongly, it is a violation not reported at all.
+ */
 export function summarise(dets: Detection[]) {
-  const compliant = dets.filter((d) => d.cls === 'hardhat').length;
-  const violations = dets.filter((d) => d.cls === 'no-hardhat').length;
-  const people = compliant + violations;
+  const withHat = dets.filter((d) => d.cls === 'hardhat').length;
+  const withoutHat = dets.filter((d) => d.cls === 'no-hardhat').length;
   return {
-    people,
-    compliant,
-    violations,
-    // Undefined rather than 100% when nobody is in frame: an empty photo is not a
-    // compliant site, and rendering it as one would be a lie the UI tells by default.
-    compliancePct: people ? Math.round((100 * compliant) / people) : null,
+    detected: withHat + withoutHat,
+    withHat,
+    withoutHat,
   };
 }

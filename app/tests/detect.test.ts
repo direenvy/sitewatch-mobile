@@ -159,13 +159,23 @@ describe('nms', () => {
 describe('summarise', () => {
   const d = (cls: Detection['cls']): Detection => ({ x1: 0, y1: 0, x2: 1, y2: 1, score: 0.9, cls });
 
-  it('counts people as the sum of both classes', () => {
+  it('counts detections, split by class', () => {
     const s = summarise([d('hardhat'), d('hardhat'), d('no-hardhat')]);
-    expect(s).toMatchObject({ people: 3, compliant: 2, violations: 1, compliancePct: 67 });
+    expect(s).toEqual({ detected: 3, withHat: 2, withoutHat: 1 });
   });
 
-  it('reports no compliance figure when nobody is in frame', () => {
-    // An empty photo is not a compliant site. Showing 100% would be a lie by default.
-    expect(summarise([]).compliancePct).toBeNull();
+  it('reports nothing at all for an empty photo', () => {
+    expect(summarise([])).toEqual({ detected: 0, withHat: 0, withoutHat: 0 });
+  });
+
+  it('exposes no compliance rate, by design', () => {
+    // A percentage asserts its denominator is everyone present. The detector only
+    // knows who it found, and the case it misses most reliably is a person on the
+    // ground — so three helmeted workers around an injured fourth used to read
+    // "100% compliant". The figure is deliberately absent, and this test fails if
+    // anyone adds it back.
+    const s = summarise([d('hardhat'), d('hardhat'), d('hardhat')]) as Record<string, unknown>;
+    expect(Object.keys(s)).toEqual(['detected', 'withHat', 'withoutHat']);
+    expect(s.compliancePct).toBeUndefined();
   });
 });

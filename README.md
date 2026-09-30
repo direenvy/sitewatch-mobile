@@ -140,13 +140,13 @@ The first photo tried on a real phone was a stock image of a site injury: three 
 in hard hats helping a fourth who is sitting on the ground, head bowed, his own helmet
 lying beside him. The app found the hard hats. **It did not find the bare head.**
 
-![Sitewatch running on a Galaxy A52: three hard hats boxed and labelled, People 3, Hard hats 3, Violations 0, Compliance 100% — while the seated man with no helmet is not detected at all](docs/hero.png)
+The app found three heads, boxed them correctly, and labelled all three as wearing hard
+hats. The man sitting on the ground without a helmet, being helped by the other three, was
+not counted as a person at all. Dragging the confidence threshold down to **0.24**, well
+below the shipped 0.35, did not make him appear.
 
-The screenshot above is the app itself, on the phone, scoring that photo. Three boxes,
-correctly placed. **People 3 · Hard hats 3 · Violations 0 · Compliance 100%** — and the
-man sitting on the ground without a helmet, being helped by the other three, is not
-counted as a person at all. The confidence threshold in that screenshot has been dragged
-down to **0.24**, well below the shipped 0.35, and he still does not appear.
+*(The photograph is a third party's copyrighted marketing image, so it is described here
+rather than reproduced.)*
 
 That is not a phone bug, a threshold choice or an export artefact, and it was worth
 proving rather than assuming:
@@ -173,6 +173,32 @@ moment. And the class that failed here is `no-hardhat` — the safety-critical o
 compliance tool that silently misses a violation is worse than one that reports nothing,
 because this photo scores **100% compliance**: three workers, three hard hats, no
 violations. The one man in danger is invisible to it.
+
+### What was fixed: the app no longer claims a compliance rate
+
+The detector's limits are not quickly fixable. The **interface built on top of them** was,
+and it was the more dangerous half.
+
+The stat row used to end with a **Compliance %** card. On that photograph it read
+**100%** — three heads found, three hard hats, no violations — a confident, specific,
+wrong answer about the exact situation the tool exists to catch. The percentage was not
+lying about its arithmetic. It was lying about its denominator: a rate silently asserts
+that the people counted are the people present, and a detector only ever knows who it
+found.
+
+The card is gone. What remains counts detections and says so — **Heads found · With hard
+hat · Without** — beside a standing warning:
+
+> Counts only heads the detector found. People sitting, crouching, turned away or partly
+> hidden are often missed — this is not a count of everyone present, and a zero here is
+> not a safe site.
+
+The warning is permanent rather than conditional, because a warning that appeared only
+when the app suspected a miss would never fire: not knowing is the failure. A unit test
+asserts the compliance figure stays absent, so it cannot be reintroduced by someone who
+thinks the dashboard looks incomplete without it.
+
+This does not detect the man. It stops the app claiming he is not there.
 
 ### The fix that did not work
 
