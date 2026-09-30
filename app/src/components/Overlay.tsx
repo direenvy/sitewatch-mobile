@@ -43,12 +43,19 @@ export function Overlay({ detections, imageWidth, imageHeight, displayWidth, dis
         const style = d.cls === 'no-hardhat' ? overlay.violation : overlay.compliant;
         const w = d.x2 - d.x1;
         const h = d.y2 - d.y1;
-        const label = `${d.cls === 'no-hardhat' ? 'NO HARD HAT' : 'HARD HAT'} ${Math.round(d.score * 100)}`;
+        // Short text, because a crowded site photo is the normal case, not the edge
+        // case. "NO HARD HAT 76" across eight overlapping heads rendered as unreadable
+        // mush; the class is already carried by the box weight, so the label only has
+        // to disambiguate, not narrate.
+        const label = `${d.cls === 'no-hardhat' ? 'NO HAT' : 'HAT'} ${Math.round(d.score * 100)}`;
         const labelW = label.length * labelSize * 0.58 + 6 * k;
         // Flip the label inside the box when the detection sits against the top edge,
         // which is exactly where heads tend to be.
         const above = d.y1 - labelSize * 1.5 > 0;
         const labelY = above ? d.y1 - labelSize * 1.5 : d.y1;
+        // Keep the label inside the frame. Heads near the right edge are common and
+        // their labels used to run off the image entirely, taking the score with them.
+        const labelX = Math.max(0, Math.min(d.x1, imageWidth - labelW));
 
         return (
           <G key={i}>
@@ -74,7 +81,7 @@ export function Overlay({ detections, imageWidth, imageHeight, displayWidth, dis
               strokeWidth={style.strokeWidth * k}
             />
             {style.labelFill !== 'transparent' && (
-              <Rect x={d.x1} y={labelY} width={labelW} height={labelSize * 1.5} fill={style.labelFill} />
+              <Rect x={labelX} y={labelY} width={labelW} height={labelSize * 1.5} fill={style.labelFill} />
             )}
             {/* An unboxed label needs a dark outline to stay readable on pale concrete.
                 SVG's `paint-order` would do it in one element, but react-native-svg does
@@ -83,7 +90,7 @@ export function Overlay({ detections, imageWidth, imageHeight, displayWidth, dis
                 thicken it into mush at this size. */}
             {style.labelFill === 'transparent' && (
               <SvgText
-                x={d.x1 + 3 * k}
+                x={labelX + 3 * k}
                 y={labelY + labelSize * 1.1}
                 fill="none"
                 stroke={colors.onyx}
@@ -95,7 +102,7 @@ export function Overlay({ detections, imageWidth, imageHeight, displayWidth, dis
               </SvgText>
             )}
             <SvgText
-              x={d.x1 + 3 * k}
+              x={labelX + 3 * k}
               y={labelY + labelSize * 1.1}
               fill={style.labelText}
               fontSize={labelSize}
